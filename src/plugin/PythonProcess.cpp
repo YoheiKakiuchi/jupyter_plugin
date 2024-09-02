@@ -185,6 +185,34 @@ bool PythonProcess::finalize()
     DEBUG_PRINT();
     return true;
 }
+void PythonProcess::runcode(const std::string &_code)
+{
+    python::gil_scoped_acquire lock;
+    orgStdout = sys.attr("stdout");
+    orgStderr = sys.attr("stderr");
+    orgStdin  = sys.attr("stdin");
+    out_strm.str("");
+    out_strm.clear();
+    err_strm.str("");
+    err_strm.clear();
+    sys.attr("stdout") = consoleOut;
+    sys.attr("stderr") = consoleErr;
+    sys.attr("stdin")  = consoleIn;
+
+    DEBUG_STREAM(" runcode: " << _com);
+    try {
+        interpreter.attr("runcode")(_code);
+    } catch (...) { /* ignore the exception on windows. this module is loaded already. */
+        ERROR_STREAM(" interpreter.runcode loading ERR");
+    }
+    if(PyErr_Occurred()){
+        PyErr_Print();
+        PyErr_Clear();
+    }
+    sys.attr("stdout") = orgStdout;
+    sys.attr("stderr") = orgStderr;
+    sys.attr("stdin")  = orgStdin;
+}
 bool PythonProcess::putCommand(const std::string &_com)
 {
     bool ret;
@@ -240,7 +268,8 @@ void PythonProcess::interpreterThread()
 }
 void PythonProcess::procPyRequest(const std::string &line)
 {
-    this->is_complete = this->putCommand(line);
+    //this->is_complete = this->putCommand(line);
+    this->runcode(line);
 }
 void PythonProcess::procComRequest(const QString &com)
 {

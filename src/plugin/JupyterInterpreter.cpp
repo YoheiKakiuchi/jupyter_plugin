@@ -293,6 +293,7 @@ namespace cnoid
                 ERROR_STREAM(" :ipython transformer failed: " << ret.size());
             }
         }
+        //// OLD implements
         bool new_enter = !after_is_complete;
         after_is_complete = true;
         int cur_pos = code.size();
@@ -419,6 +420,19 @@ namespace cnoid
     }
     bool JupyterInterpreter::execute_python(const std::string& code, bool &is_complete, bool in_complete)
     {
+        bool error_ = false;
+        oss_out.str("");
+        oss_out.clear(std::stringstream::goodbit);
+        oss_err.str("");
+        oss_err.clear(std::stringstream::goodbit);
+
+        impl->sendPyRequest(code);
+        oss_out << impl->out_strm.str();
+        if (impl->err_strm.str().size() > 0) {
+            oss_err << impl->err_strm.str();
+        }
+        return true;
+#if 0
         std::vector<std::string> lines_;
         DEBUG_STREAM(" code: " << code);
         if (!split_code(lines_, code)) {
@@ -483,6 +497,7 @@ namespace cnoid
         }
         if(error_) oss_err << impl->err_strm.str();
         return true;
+#endif
     }
 #if 0
     //// direct run from another thread
