@@ -21,6 +21,9 @@
 #include <cnoid/SceneView>
 #include <cnoid/SceneWidget>
 
+//
+#include "pybind11/eval.h"
+
 //#define IRSL_DEBUG
 #include "irsl_debug.h"
 
@@ -167,7 +170,14 @@ bool PythonProcess::setupPython()
     }
 #endif
 
-    pybind11::module builtins = pybind11::module::import("builtins");
+    ast_mod = python::module::import("ast");
+    // sys.attr("displayhook")
+    // ast_mod.attr("PyCF_ONLY_AST")## int
+    ast_interactive =  ast_mod.attr("Interactive");
+    builtins = pybind11::module::import("builtins");
+    bltin_compile = builtins.attr("compile");
+    //bltin_exec = builtins.attr("exec");
+
     //m_sys_input = builtins.attr("input");
     builtins.attr("input") = pybind11::cpp_function(&cpp_input, pybind11::arg("prompt") = "");
 
@@ -185,8 +195,14 @@ bool PythonProcess::finalize()
     DEBUG_PRINT();
     return true;
 }
-void PythonProcess::runcode(const std::string &_code)
+//// exec version
+static inline void exec(python::object &_code)
 {
+    python::exec("exec(_code_, _scope_, _scope_)", python::globals(), python::dict(python::arg("_code_") = _code, python::arg("_scope_") = python::globals()));
+}
+bool PythonProcess::putCommand(const std::string &_com)
+{
+    bool ret = true;
     python::gil_scoped_acquire lock;
     orgStdout = sys.attr("stdout");
     orgStderr = sys.attr("stderr");
@@ -199,20 +215,53 @@ void PythonProcess::runcode(const std::string &_code)
     sys.attr("stderr") = consoleErr;
     sys.attr("stdin")  = consoleIn;
 
-    DEBUG_STREAM(" runcode: " << _com);
+    DEBUG_STREAM(" exec: " << _com);
+    ////
     try {
-        interpreter.attr("runcode")(_code);
-    } catch (...) { /* ignore the exception on windows. this module is loaded already. */
-        ERROR_STREAM(" interpreter.runcode loading ERR");
-    }
-    if(PyErr_Occurred()){
-        PyErr_Print();
-        PyErr_Clear();
+        std::string code_copy(_com);
+        const std::string filename("<input>");
+
+        // Parse code to AST
+        python::object code_ast  = ast_mod.attr("parse")(code_copy, "<input>", "exec");
+        python::list expressions = code_ast.attr("body");
+
+        //std::string filename = xeus::get_cell_tmp_file("cnoid_jupyter", code, ".py");
+        //register_filename_mapping(filename, execution_count);
+
+        python::object last_stmt = expressions[ python::len(expressions) - 1 ];
+        if (python::isinstance(last_stmt, ast_mod.attr("Expr"))) {
+            code_ast.attr("body").attr("pop")();
+            python::list interactive_nodes;
+            interactive_nodes.append(last_stmt);
+
+            python::object interactive_ast = ast_interactive(interactive_nodes);
+            python::object compiled_code   = bltin_compile(code_ast, filename, "exec");
+
+            python::object compiled_interactive_code = bltin_compile(interactive_ast, filename, "single");
+            exec(compiled_code);
+            exec(compiled_interactive_code);
+        } else {
+            python::object compiled_code = bltin_compile(code_ast, filename, "exec");
+            exec(compiled_code);
+        }
+        //kernel_res["status"] = "ok";
+        //kernel_res["user_expressions"] = nl::json::object();
+        //kernel_res["payload"] = nl::json::array();
+    } catch (python::error_already_set& e) {
+        // error
+        // TODO
+        DEBUG_STREAM(" error: " << e.what());
+        python::print(e.what(), python::arg("file") = consoleErr);
+        ret = false;
     }
     sys.attr("stdout") = orgStdout;
     sys.attr("stderr") = orgStderr;
     sys.attr("stdin")  = orgStdin;
+
+    return ret;
 }
+#if 0
+//// interpreter version
 bool PythonProcess::putCommand(const std::string &_com)
 {
     bool ret;
@@ -249,6 +298,7 @@ bool PythonProcess::putCommand(const std::string &_com)
 
     return ret;
 }
+#endif
 void PythonProcess::interpreterThread()
 {
     if(connection_file.size() == 0) return;
@@ -268,8 +318,7 @@ void PythonProcess::interpreterThread()
 }
 void PythonProcess::procPyRequest(const std::string &line)
 {
-    //this->is_complete = this->putCommand(line);
-    this->runcode(line);
+    this->is_complete = this->putCommand(line);
 }
 void PythonProcess::procComRequest(const QString &com)
 {

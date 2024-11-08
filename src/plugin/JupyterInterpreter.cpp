@@ -294,6 +294,7 @@ namespace cnoid
             }
         }
         //// OLD implements
+        //// may not enter below unless error occurred
         bool new_enter = !after_is_complete;
         after_is_complete = true;
         int cur_pos = code.size();
@@ -418,6 +419,7 @@ namespace cnoid
         execute_python(code, res, true);
         return res;
     }
+    //// exec version
     bool JupyterInterpreter::execute_python(const std::string& code, bool &is_complete, bool in_complete)
     {
         bool error_ = false;
@@ -426,13 +428,23 @@ namespace cnoid
         oss_err.str("");
         oss_err.clear(std::stringstream::goodbit);
 
+        DEBUG_STREAM("in(code): " << code);
         impl->sendPyRequest(code);
+
         oss_out << impl->out_strm.str();
         if (impl->err_strm.str().size() > 0) {
             oss_err << impl->err_strm.str();
+            error_ = true;
         }
-        return true;
+
+        DEBUG_STREAM(" oss_out:|" << oss_out.str() << "|:");
+        DEBUG_STREAM(" oss_err:|" << oss_err.str() << "|:");
+        return !error_;
+    }
 #if 0
+    //// interpreter version
+    bool JupyterInterpreter::execute_python(const std::string& code, bool &is_complete, bool in_complete)
+    {
         std::vector<std::string> lines_;
         DEBUG_STREAM(" code: " << code);
         if (!split_code(lines_, code)) {
@@ -497,8 +509,8 @@ namespace cnoid
         }
         if(error_) oss_err << impl->err_strm.str();
         return true;
-#endif
     }
+#endif
 #if 0
     //// direct run from another thread
     bool JupyterInterpreter::execute_python(const std::string& code, bool &is_complete, bool in_complete)
