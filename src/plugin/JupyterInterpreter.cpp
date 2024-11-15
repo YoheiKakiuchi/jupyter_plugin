@@ -379,13 +379,40 @@ namespace cnoid
 
     nl::json JupyterInterpreter::kernel_info_request_impl()
     {
-        return xeus::create_info_reply("",
-                                       "Choreonoid",
-                                       "0.1.0",
-                                       "python",
-                                       "3.7",
-                                       "text/x-python",
-                                       ".py");
+#if 0 // copy from xhelper.hpp
+    nl::json create_info_reply(const std::string& protocol_version = std::string(),
+                               const std::string& implementation = std::string(),
+                               const std::string& implementation_version = std::string(),
+                               const std::string& language_name = std::string(),
+                               const std::string& language_version = std::string(),
+                               const std::string& language_mimetype = std::string(),
+                               const std::string& language_file_extension = std::string(),
+                               const std::string& pygments_lexer = std::string(),
+                               const std::string& language_codemirror_mode = std::string(),
+                               const std::string& language_nbconvert_exporter = std::string(),
+                               const std::string& banner = std::string(),
+                               const bool debugger = false,
+                               const nl::json& help_links = nl::json::array());
+#endif
+        return xeus::create_info_reply("",               //protocol_version
+                                       "Choreonoid",     //implementation
+                                       "0.1.0",          //implementation_version
+                                       "python",         //language_name
+                                       "3.7",            //language_version
+                                       "text/x-python",  //language_mimetype
+                                       ".py",            //language_file_extension
+                                       "ipython3",       //pygments_lexer
+                                       "",               //language_codemirror
+                                       "",               //language_nbconvert_exporter
+R"_IRSL_(     ######################################
+    ##                                  ##
+   ##  Choreonoid jupyter by IRSL-tut  ##
+  ##    https://github.com/IRSL-tut   ##
+ ##                                  ##
+######################################
+
+# start with exec(open('/choreonoid_ws/install/share/irsl_choreonoid/sample/irsl_import.py').read()))_IRSL_"   //banner
+            );
     }
     void JupyterInterpreter::shutdown_request_impl()
     {
