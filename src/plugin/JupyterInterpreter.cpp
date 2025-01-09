@@ -411,7 +411,7 @@ R"_IRSL_(     ######################################
  ##                                  ##
 ######################################
 
-# start with exec(open('/choreonoid_ws/install/share/irsl_choreonoid/sample/irsl_import.py').read()))_IRSL_"   //banner
+# start exec(open('/choreonoid_ws/install/share/irsl_choreonoid/sample/irsl_import.py').read()))_IRSL_"   //banner
             );
     }
     void JupyterInterpreter::shutdown_request_impl()
