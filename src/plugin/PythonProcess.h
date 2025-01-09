@@ -37,13 +37,11 @@ public:
     python::module ast_mod;
     python::object ast_interactive;
     python::object bltin_compile;
-    //python::object bltin_exec;
 
     void onSigOptionsParsed(boost::program_options::variables_map& variables);
     bool initialize();
     bool finalize();
     bool putCommand(const std::string &_com);
-    void runcode(const std::string &_code);
     //void inspectObject(const std::string &obj_name);
     python::object findObject(const std::string &obj_name);
 

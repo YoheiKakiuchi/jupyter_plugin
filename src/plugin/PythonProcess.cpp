@@ -171,14 +171,10 @@ bool PythonProcess::setupPython()
 #endif
 
     ast_mod = python::module::import("ast");
-    // sys.attr("displayhook")
-    // ast_mod.attr("PyCF_ONLY_AST")## int
     ast_interactive =  ast_mod.attr("Interactive");
     builtins = pybind11::module::import("builtins");
     bltin_compile = builtins.attr("compile");
-    //bltin_exec = builtins.attr("exec");
 
-    //m_sys_input = builtins.attr("input");
     builtins.attr("input") = pybind11::cpp_function(&cpp_input, pybind11::arg("prompt") = "");
 
     connect(this, &PythonProcess::sendComRequest,
@@ -224,9 +220,6 @@ bool PythonProcess::putCommand(const std::string &_com)
         // Parse code to AST
         python::object code_ast  = ast_mod.attr("parse")(code_copy, "<input>", "exec");
         python::list expressions = code_ast.attr("body");
-
-        //std::string filename = xeus::get_cell_tmp_file("cnoid_jupyter", code, ".py");
-        //register_filename_mapping(filename, execution_count);
 
         python::object last_stmt = expressions[ python::len(expressions) - 1 ];
         if (python::isinstance(last_stmt, ast_mod.attr("Expr"))) {
