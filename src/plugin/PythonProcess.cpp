@@ -1,39 +1,38 @@
 #include "PythonProcess.h"
 
-// xeus
-#include <xeus/xkernel.hpp>
-#include <xeus/xkernel_configuration.hpp>
-#include <xeus-zmq/xserver_zmq.hpp>
-#include <xeus-zmq/xzmq_context.hpp>
-#include <xeus/xinput.hpp>
-
 // cnoid
 #include <cnoid/UTF8>
 #include <cnoid/stdx/filesystem>
 // thread
 #include <thread>
 
-
 // xeus
-#include "xeus/xkernel.hpp"
-#include "xeus/xkernel_configuration.hpp"
-#include "xeus/xinterpreter.hpp"
-#include "xeus/xhelper.hpp"
+#include <xeus/xkernel.hpp>
+#include <xeus/xkernel_configuration.hpp>
+#include <xeus/xinterpreter.hpp>
+#include <xeus/xhelper.hpp>
 
-#include "xeus-zmq/xserver_zmq_split.hpp"
-#include "xeus-zmq/xzmq_context.hpp"
+#include <xeus-zmq/xserver_zmq_split.hpp>
+#include <xeus-zmq/xzmq_context.hpp>
 
-#include "pybind11/embed.h"
-#include "pybind11/pybind11.h"
+#include <pybind11/embed.h>
+#include <pybind11/pybind11.h>
 
-#include "xeus-python/xinterpreter.hpp"
-#include "xeus-python/xinterpreter_raw.hpp"
-#include "xeus-python/xdebugger.hpp"
-#include "xeus-python/xpaths.hpp"
-#include "xeus-python/xeus_python_config.hpp"
-#include "xeus-python/xutils.hpp"
+#include <xeus-python/xinterpreter.hpp>
+#include <xeus-python/xinterpreter_raw.hpp>
+#include <xeus-python/xdebugger.hpp>
+#include <xeus-python/xtraceback.hpp>
+#include <xeus-python/xpaths.hpp>
+#include <xeus-python/xeus_python_config.hpp>
+#include <xeus-python/xutils.hpp>
 
+// HOTFIX
 #include <dlfcn.h>
+
+#include "cnoid_interpreter.hpp"
+
+// for shutdown
+#include <QCoreApplication>
 
 //#define IRSL_DEBUG
 #include "irsl_debug.h"
@@ -47,20 +46,23 @@ class PythonProcess::Impl
 {
 public:
     Impl(PythonProcess *_self);
-    PythonProcess *self;
 
-    using interpreter_ptr = std::unique_ptr<xeus::xinterpreter>;
-    using kernel_ptr = std::unique_ptr<xeus::xkernel>;
+public:
+    PythonProcess *self;
 
     std::unique_ptr<pybind11::scoped_interpreter> py_interpreter;
 
+    using kernel_ptr = std::unique_ptr<xeus::xkernel>;
     kernel_ptr kernel;
+
+    using interpreter_ptr = std::unique_ptr<xeus::xinterpreter>;
+    xeus::xinterpreter *interpreter;
 
     void *python;
 };
 }
 
-PythonProcess::Impl::Impl(PythonProcess *_self) : self(_self)
+PythonProcess::Impl::Impl(PythonProcess *_self) : self(_self), interpreter(nullptr), python(nullptr)
 {
 }
 
@@ -77,8 +79,8 @@ void PythonProcess::onSigOptionsParsed(OptionManager *_om)
         th_kernel.detach();
     } else {
         bool res = setupPython();
-        //std::thread th_kernel(&PythonProcess::kernelThread, this);
-        //th_kernel.detach();
+        std::thread th_kernel(&PythonProcess::kernelThread, this);
+        th_kernel.detach();
     }
 }
 
@@ -95,6 +97,67 @@ bool PythonProcess::initialize()
 
     return true;
 }
+
+bool PythonProcess::finalize()
+{
+    DEBUG_PRINT();
+    dlclose(impl->python);
+    return true;
+}
+
+void PythonProcess::procRequest(const std::string &code, bool &exception_occurred, nl::json &kernel_res)
+{
+    DEBUG_PRINT();
+    xeus::execute_request_config config;
+    exception_occurred = false;
+
+    try
+    {
+        //m_ipython_shell.attr("run_cell")(code, "store_history"_a=config.store_history, "silent"_a=config.silent);
+    }
+    catch(std::runtime_error& e)
+    {
+        const std::string error_msg = e.what();
+        if(!config.silent)
+        {
+            impl->interpreter->publish_execution_error("RuntimeError", error_msg, std::vector<std::string>());
+        }
+        kernel_res["ename"] = "std::runtime_error";
+        kernel_res["evalue"] = error_msg;
+        exception_occurred = true;
+    }
+    catch (py::error_already_set& e)
+    {
+        xpyt::xerror error = xpyt::extract_already_set_error(e);
+        if (!config.silent)
+        {
+            impl->interpreter->publish_execution_error(error.m_ename, error.m_evalue, error.m_traceback);
+        }
+
+        kernel_res["status"] = "error";
+        kernel_res["ename"] = error.m_ename;
+        kernel_res["evalue"] = error.m_evalue;
+        kernel_res["traceback"] = error.m_traceback;
+        exception_occurred = true;
+    }
+    catch(...)
+    {
+        if(!config.silent)
+        {
+            impl->interpreter->publish_execution_error("unknown_error", "", std::vector<std::string>());
+        }
+        kernel_res["ename"] = "UnknownError";
+        kernel_res["evalue"] = "";
+        exception_occurred = true;
+    }
+}
+
+void PythonProcess::shutdown_impl()
+{
+    DEBUG_PRINT();
+    QCoreApplication::quit(); // [TODO] exit choreonoid, is it OK?
+}
+
 bool PythonProcess::setupPython()
 {
     std::string ver(Py_GetVersion());
@@ -121,16 +184,15 @@ bool PythonProcess::setupPython()
     impl->py_interpreter.reset(new pybind11::scoped_interpreter());
 
     if (!connection_file.empty()) {
-
-
         std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
-        Impl::interpreter_ptr interpreter = Impl::interpreter_ptr(new xpyt::interpreter());
-
+        Impl::interpreter_ptr interpreter_ = Impl::interpreter_ptr(new cnoid_interpreter());
+        impl->interpreter = interpreter_.get();
+        dynamic_cast<cnoid_interpreter *>(impl->interpreter)->process = this;
         xeus::xconfiguration config = xeus::load_configuration(connection_file);
         impl->kernel = Impl::kernel_ptr(new xeus::xkernel(config,
                                                           xeus::get_user_name(),
                                                           std::move(context),
-                                                          std::move(interpreter),
+                                                          std::move(interpreter_),
                                                           xeus::make_xserver_shell_main,
                                                           std::move(hist),
                                                           xeus::make_console_logger(xeus::xlogger::msg_type,
@@ -138,25 +200,24 @@ bool PythonProcess::setupPython()
                                                           xpyt::make_python_debugger,
                                                           debugger_config));
     } else {
-        void *python = dlopen("/usr/lib/x86_64-linux-gnu/libpython3.8.so", RTLD_NOW | RTLD_GLOBAL);
-
         std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
 
         std::cout << "Interpreter" << std::endl;
-        Impl::interpreter_ptr interpreter = Impl::interpreter_ptr(new xpyt::interpreter());
-
+        Impl::interpreter_ptr interpreter_ = Impl::interpreter_ptr(new cnoid_interpreter());
+        impl->interpreter = interpreter_.get();
+        dynamic_cast<cnoid_interpreter *>(impl->interpreter)->process = this;
         std::cout << "Instantiating kernel" << std::endl;
-        xeus::xkernel kernel(xeus::get_user_name(),
-                             std::move(context),
-                             std::move(interpreter),
-                             xeus::make_xserver_shell_main,
-                             std::move(hist),
-                             nullptr,
-                             xpyt::make_python_debugger,
-                             debugger_config);
+        impl->kernel = Impl::kernel_ptr(new xeus::xkernel(xeus::get_user_name(),
+                                                          std::move(context),
+                                                          std::move(interpreter_),
+                                                          xeus::make_xserver_shell_main,
+                                                          std::move(hist),
+                                                          nullptr,
+                                                          xpyt::make_python_debugger,
+                                                          debugger_config));
 
         std::cout << "Getting config" << std::endl;
-        const auto& config = kernel.get_config();
+        const auto& config = impl->kernel->get_config();
         std::cout <<
             "Starting xeus-python kernel...\n\n"
             "If you want to connect to this kernel from an other client, just copy"
@@ -174,8 +235,6 @@ bool PythonProcess::setupPython()
             "    \"key\": \"" + config.m_key + "\"\n"
             "}\n```"
             << std::endl;
-
-        kernel.start();
     }
 
     connect(this, &PythonProcess::sendRequest,
@@ -184,19 +243,9 @@ bool PythonProcess::setupPython()
 
     return true;
 }
-bool PythonProcess::finalize()
-{
-    DEBUG_PRINT();
-    dlclose(impl->python);
-    return true;
-}
 
 void PythonProcess::kernelThread()
 {
     impl->kernel->start();
 }
 
-void PythonProcess::procRequest(hoge &msg)
-{
-    DEBUG_PRINT();
-}

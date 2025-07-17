@@ -1,11 +1,14 @@
 #ifndef CNOID_JUPYTER_PLUGIN_PYTHON_PROCESS_H
 #define CNOID_JUPYTER_PLUGIN_PYTHON_PROCESS_H
+
 #include <QObject>
 #include <cnoid/OptionManager> //option
 #include <sstream>
 
+#include "nlohmann/json.hpp"
 #include "JupyterPlugin.h"
-#include <xeus/xmessage.hpp>
+
+namespace nl = nlohmann;
 
 namespace cnoid {
 
@@ -26,12 +29,12 @@ public:
 #endif
     bool initialize();
     bool finalize();
+    void shutdown_impl();
 
-    using hoge = std::vector<xeus::xmessage>;
 public Q_SLOTS:
-    void procRequest(hoge &msg);
+    void procRequest(const std::string &code, bool &exception_occurred, nl::json &kernel_result);
 Q_SIGNALS:
-    void sendRequest(hoge &msg);
+    void sendRequest(const std::string &code, bool &exception_occurred, nl::json &kernel_result);
 
 private:
     JupyterPlugin *self;
