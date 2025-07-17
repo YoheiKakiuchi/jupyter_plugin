@@ -14,7 +14,9 @@ class PythonProcess : public QObject
     Q_OBJECT;
 public:
     PythonProcess(JupyterPlugin *_self) : self(_self)
-    { self = _self; }
+    {
+        self = _self;
+    }
     std::string connection_file;
 
 #ifdef USE_OLD_OPTION

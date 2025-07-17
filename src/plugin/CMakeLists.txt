@@ -27,6 +27,7 @@ find_package(Threads)
 find_package(xeus-zmq  REQUIRED)
 find_package(xeus-python REQUIRED)
 set(xeuslib xeus xeus-zmq xeus-python python3.8)
+
 add_definitions(-DUSE_XEUS5)
 message("using XEUS5 : ${xeus_VERSION} / ${xeuslib}")
 

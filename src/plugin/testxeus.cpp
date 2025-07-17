@@ -41,6 +41,12 @@
 
 namespace py = pybind11;
 
+int main()
+{
+    //PythonProces *p = new PythonProcess(nullptr);
+}
+
+#if 0
 int main(int argc, char* argv[])
 {
     if (xeus::should_print_version(argc, argv))
@@ -116,7 +122,7 @@ int main(int argc, char* argv[])
     delete[] argw;
 #endif
     // Instantiating the Python interpreter
-    //py::scoped_interpreter guard;
+    py::scoped_interpreter guard;
 
     std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
 
@@ -208,3 +214,4 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+#endif

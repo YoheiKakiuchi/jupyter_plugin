@@ -33,6 +33,7 @@
 #include "xeus-python/xeus_python_config.hpp"
 #include "xeus-python/xutils.hpp"
 
+#include <dlfcn.h>
 
 //#define IRSL_DEBUG
 #include "irsl_debug.h"
@@ -51,8 +52,11 @@ public:
     using interpreter_ptr = std::unique_ptr<xeus::xinterpreter>;
     using kernel_ptr = std::unique_ptr<xeus::xkernel>;
 
+    std::unique_ptr<pybind11::scoped_interpreter> py_interpreter;
+
     kernel_ptr kernel;
-    interpreter_ptr interpreter;
+
+    void *python;
 };
 }
 
@@ -72,7 +76,7 @@ void PythonProcess::onSigOptionsParsed(OptionManager *_om)
         std::thread th_kernel(&PythonProcess::kernelThread, this);
         th_kernel.detach();
     } else {
-        //bool res = setupPython();
+        bool res = setupPython();
         //std::thread th_kernel(&PythonProcess::kernelThread, this);
         //th_kernel.detach();
     }
@@ -93,6 +97,9 @@ bool PythonProcess::initialize()
 }
 bool PythonProcess::setupPython()
 {
+    std::string ver(Py_GetVersion());
+    std::cout << "ver: " << ver << std::endl;
+
     PyStatus status;
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
@@ -104,20 +111,26 @@ bool PythonProcess::setupPython()
     char **argv = nullptr;
     PyConfig_SetBytesArgv(&config, argc, argv);
 
-    impl->interpreter = Impl::interpreter_ptr(new xpyt::interpreter());
-
     using history_manager_ptr = std::unique_ptr<xeus::xhistory_manager>;
     history_manager_ptr hist = xeus::make_in_memory_history_manager();
 
     nl::json debugger_config;
     debugger_config["python"] = "choreonoid";
 
+    impl->python = dlopen("/usr/lib/x86_64-linux-gnu/libpython3.8.so", RTLD_NOW | RTLD_GLOBAL);
+    impl->py_interpreter.reset(new pybind11::scoped_interpreter());
+
     if (!connection_file.empty()) {
+
+
+        std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
+        Impl::interpreter_ptr interpreter = Impl::interpreter_ptr(new xpyt::interpreter());
+
         xeus::xconfiguration config = xeus::load_configuration(connection_file);
         impl->kernel = Impl::kernel_ptr(new xeus::xkernel(config,
                                                           xeus::get_user_name(),
                                                           std::move(context),
-                                                          std::move(impl->interpreter),
+                                                          std::move(interpreter),
                                                           xeus::make_xserver_shell_main,
                                                           std::move(hist),
                                                           xeus::make_console_logger(xeus::xlogger::msg_type,
@@ -125,12 +138,13 @@ bool PythonProcess::setupPython()
                                                           xpyt::make_python_debugger,
                                                           debugger_config));
     } else {
-        py::scoped_interpreter guard;
+        void *python = dlopen("/usr/lib/x86_64-linux-gnu/libpython3.8.so", RTLD_NOW | RTLD_GLOBAL);
 
         std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
 
         std::cout << "Interpreter" << std::endl;
         Impl::interpreter_ptr interpreter = Impl::interpreter_ptr(new xpyt::interpreter());
+
         std::cout << "Instantiating kernel" << std::endl;
         xeus::xkernel kernel(xeus::get_user_name(),
                              std::move(context),
@@ -140,6 +154,7 @@ bool PythonProcess::setupPython()
                              nullptr,
                              xpyt::make_python_debugger,
                              debugger_config);
+
         std::cout << "Getting config" << std::endl;
         const auto& config = kernel.get_config();
         std::cout <<
@@ -172,6 +187,7 @@ bool PythonProcess::setupPython()
 bool PythonProcess::finalize()
 {
     DEBUG_PRINT();
+    dlclose(impl->python);
     return true;
 }
 
