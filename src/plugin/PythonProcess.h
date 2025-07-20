@@ -7,6 +7,7 @@
 
 #include "nlohmann/json.hpp"
 #include "JupyterPlugin.h"
+#include <xeus/xinterpreter.hpp>
 
 namespace nl = nlohmann;
 
@@ -32,9 +33,9 @@ public:
     void shutdown_impl();
 
 public Q_SLOTS:
-    void procRequest(const std::string &code, bool &exception_occurred, nl::json &kernel_result);
+    void procRequest(const std::string &code, nl::json &kernel_result, xeus::execute_request_config &config, nl::json &user_expressions);
 Q_SIGNALS:
-    void sendRequest(const std::string &code, bool &exception_occurred, nl::json &kernel_result);
+    void sendRequest(const std::string &code, nl::json &kernel_result, xeus::execute_request_config &config, nl::json &user_expressions);
 
 private:
     JupyterPlugin *self;

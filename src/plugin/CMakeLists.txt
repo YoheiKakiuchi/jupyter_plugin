@@ -4,11 +4,13 @@ set(sources
   JupyterPlugin.cpp
   PythonProcess.cpp
   cnoid_interpreter.cpp
+  xinput.cpp
   )
 set(headers
   JupyterPlugin.h
   PythonProcess.h
   cnoid_interpreter.hpp
+  xinput.hpp
   )
 if (NOT WIN32)
   add_definitions(-Wno-deprecated-declarations)
