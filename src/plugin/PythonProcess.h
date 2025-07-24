@@ -3,11 +3,12 @@
 
 #include <QObject>
 #include <cnoid/OptionManager> //option
-#include <sstream>
 
 #include "nlohmann/json.hpp"
 #include "JupyterPlugin.h"
 #include <xeus/xinterpreter.hpp>
+
+#include <sys/types.h>
 
 namespace nl = nlohmann;
 
@@ -32,10 +33,16 @@ public:
     bool finalize();
     void shutdown_impl();
 
+    void proc();
+
+    pid_t getpid();
+    pid_t gettid();
+
 public Q_SLOTS:
     void procRequest(const std::string &code, nl::json &kernel_result, xeus::execute_request_config &config, nl::json &user_expressions);
 Q_SIGNALS:
     void sendRequest(const std::string &code, nl::json &kernel_result, xeus::execute_request_config &config, nl::json &user_expressions);
+
 
 private:
     JupyterPlugin *self;
