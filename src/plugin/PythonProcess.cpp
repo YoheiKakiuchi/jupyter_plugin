@@ -74,11 +74,11 @@ void PythonProcess::onSigOptionsParsed(OptionManager *_om)
         connection_file = op->as<std::string>();
         DEBUG_STREAM(" jupyter-connection:" << connection_file);
 
-        bool res = setupPython();
+        //bool res = setupPython();
         std::thread th_kernel(&PythonProcess::kernelThread, this);
         th_kernel.detach();
     } else {
-        bool res = setupPython();
+        //bool res = setupPython();
         std::thread th_kernel(&PythonProcess::kernelThread, this);
         th_kernel.detach();
     }
@@ -153,9 +153,11 @@ bool PythonProcess::setupPython()
                                                           std::move(interpreter_),
                                                           xeus::make_xserver_shell_main,
                                                           std::move(hist),
-                                                          xeus::make_file_logger(xeus::xlogger::full, "/tmp/xeus.log"), // require export XEUS_LOG=1
+                                                          xeus::make_console_logger(xeus::xlogger::full,
+                                                                                    xeus::make_file_logger(xeus::xlogger::full, "/tmp/xeus.log")), // require export XEUS_LOG=1
                                                           xpyt::make_python_debugger,
                                                           debugger_config));
+        // start blocking
         impl->kernel->start();
     } else {
         std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
@@ -205,6 +207,8 @@ bool PythonProcess::setupPython()
 void PythonProcess::kernelThread()
 {
     std::cout << "Started in Kernel" << std::endl;
-    impl->kernel->start();
+    //impl->kernel->start();
+
+    setupPython();
 }
 

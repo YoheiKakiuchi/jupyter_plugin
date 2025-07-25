@@ -97,6 +97,8 @@ void cnoid_interpreter::execute_request_impl(send_reply_callback cb,
     process->sendRequest(code, kernel_res, config, user_expressions);
     cb(kernel_res);
 }
+#else
+// USE original version of execute_request
 #endif
 void cnoid_interpreter::execute_request_impl_impl(const std::string& code,
                                                   nl::json &kernel_res,
