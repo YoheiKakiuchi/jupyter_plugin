@@ -29,26 +29,16 @@ public:
 #else
     void onSigOptionsParsed(OptionManager *_om);
 #endif
+
     bool initialize();
     bool finalize();
     void shutdown_impl();
-
+    //
     void proc();
-
-    pid_t getpid();
-    pid_t gettid();
-
-public Q_SLOTS:
-    void procRequest(const std::string &code, nl::json &kernel_result, xeus::execute_request_config &config, nl::json &user_expressions);
-Q_SIGNALS:
-    void sendRequest(const std::string &code, nl::json &kernel_result, xeus::execute_request_config &config, nl::json &user_expressions);
-
 
 private:
     JupyterPlugin *self;
     bool setupPython();
-    bool start();
-    void kernelThread();
 
     class Impl;
     Impl *impl;
