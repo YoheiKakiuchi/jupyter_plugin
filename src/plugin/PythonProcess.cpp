@@ -74,11 +74,13 @@ public:
     xeus::non_blocking_runner* p_runner;
 
     QTimer timer;
+
+    bool use_jupyter;
 };
 }
 
 PythonProcess::Impl::Impl(PythonProcess *_self) : self(_self), interpreter(nullptr), python(nullptr),
-                                                  p_runner(nullptr), timer(_self)
+                                                  p_runner(nullptr), timer(_self), use_jupyter(false)
 {
 }
 
@@ -99,10 +101,9 @@ void PythonProcess::onSigOptionsParsed(OptionManager *_om)
         auto op = _om->get_option("--jupyter-connection");
         connection_file = op->as<std::string>();
         DEBUG_STREAM(" jupyter-connection:" << connection_file);
-        bool res = setupPython();
-
-    } else {
-        /* */
+        impl->use_jupyter = true;
+    }
+    if (impl->use_jupyter) {
         bool res = setupPython();
     }
 }
@@ -115,6 +116,7 @@ bool PythonProcess::initialize()
 
     auto om = OptionManager::instance();
     om->add_option("--jupyter-connection", "connection file for jupyter");
+    om->add_flag("--use-jupyter", impl->use_jupyter, "use jupyter");
     om->sigOptionsParsed(1).connect(
         [this](OptionManager *_om) { onSigOptionsParsed(_om); } );
 
@@ -131,6 +133,7 @@ bool PythonProcess::finalize()
 void PythonProcess::shutdown_impl()
 {
     DEBUG_PRINT();
+    INFO_STREAM(" shutdown_impl");
     impl->kernel->get_server().stop();
     QCoreApplication::quit(); // [TODO] exit choreonoid, is it OK?
 }
