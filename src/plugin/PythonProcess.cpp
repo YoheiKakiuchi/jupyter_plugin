@@ -76,6 +76,8 @@ public:
     QTimer timer;
 
     bool use_jupyter;
+
+    Runner *qrunner;
 };
 }
 
@@ -92,6 +94,18 @@ void PythonProcess::proc()
             //std::cout << "runner->proc(false) pid: " << this->getpid() << ", tid: " << this->gettid() << std::endl;
         }
     }
+}
+
+bool PythonProcess::blocking_poll()
+{
+    if (!!(impl->p_runner)) {
+        bool res = impl->p_runner->blocking_poll();
+        if (!res) {
+            //std::cout << "runner->proc(false) pid: " << this->getpid() << ", tid: " << this->gettid() << std::endl;
+        }
+        return res;
+    }
+    return false;
 }
 
 void PythonProcess::onSigOptionsParsed(OptionManager *_om)
@@ -190,10 +204,16 @@ bool PythonProcess::setupPython()
                                                           xpyt::make_python_debugger,
                                                           debugger_config));
         impl->kernel->start();
-        // timer proc
+#if 0
+        // timered non_blocking poll
         impl->timer.setInterval(0);
         connect(&(impl->timer), &QTimer::timeout, this, &PythonProcess::proc);
         impl->timer.start();
+#endif
+        impl->qrunner = new Runner(impl->self);
+        connect(impl->qrunner, &Runner::sendRequest,
+                this, &PythonProcess::procRequest, Qt::BlockingQueuedConnection);
+        impl->qrunner->start();
     } else {
         std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
         Impl::interpreter_ptr interpreter_(new cnoid_interpreter());
@@ -248,3 +268,33 @@ bool PythonProcess::setupPython()
 
     return true;
 }
+
+void PythonProcess::procRequest()
+{
+    proc();
+}
+
+class Runner::Impl {
+public:
+    Impl() { };
+public:
+    PythonProcess *p_proc;
+};
+
+Runner::Runner(PythonProcess *pp) : QThread()
+{
+    impl = new Impl();
+    impl->p_proc = pp;
+}
+
+void Runner::run()
+{
+    while(true) {
+        if (!!impl->p_proc) {
+            if (impl->p_proc->blocking_poll()) {
+                this->sendRequest();
+            }
+        }
+    }
+}
+

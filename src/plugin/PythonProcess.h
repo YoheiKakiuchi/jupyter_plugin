@@ -2,6 +2,7 @@
 #define CNOID_JUPYTER_PLUGIN_PYTHON_PROCESS_H
 
 #include <QObject>
+#include <QThread>
 #include <cnoid/OptionManager> //option
 
 #include "nlohmann/json.hpp"
@@ -35,15 +36,34 @@ public:
     void shutdown_impl();
     //
     void proc();
+    bool blocking_poll();
+
+public Q_SLOTS:
+    void procRequest();
 
 private:
     JupyterPlugin *self;
     bool setupPython();
 
+private:
+    class Impl;
+    Impl *impl;
+};
+
+class Runner : public QThread
+{
+    Q_OBJECT;
+public:
+    Runner(PythonProcess *pp);
+    void run() override;
+
+Q_SIGNALS:
+    void sendRequest();
+
+private:
     class Impl;
     Impl *impl;
 };
 
 }
-
 #endif

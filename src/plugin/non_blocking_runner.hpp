@@ -12,12 +12,18 @@ namespace xeus
         non_blocking_runner() = default;
         ~non_blocking_runner() override = default;
 
+        bool blocking_poll();
         bool proc();
 
     private:
 
         void run_impl() override;
     };
+
+    bool non_blocking_runner::blocking_poll() {
+        auto chan = poll_channels();
+        return true;
+    }
 
     bool non_blocking_runner::proc()
     {
