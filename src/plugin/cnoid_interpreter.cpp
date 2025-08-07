@@ -19,6 +19,7 @@ using namespace pybind11::literals; // for ""_a
 
 cnoid_interpreter::cnoid_interpreter(bool r_o_e, bool r_d_e) : xpyt::interpreter(r_o_e, r_d_e)
 {
+    m_release_gil_at_startup = false; // using PythonPlugin
 }
 
 cnoid_interpreter::~cnoid_interpreter()

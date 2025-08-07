@@ -161,7 +161,7 @@ bool PythonProcess::setupPython()
     debugger_config["python"] = "choreonoid";
 
     impl->python = dlopen("/usr/lib/x86_64-linux-gnu/libpython3.8.so", RTLD_NOW | RTLD_GLOBAL);
-    impl->py_interpreter.reset(new pybind11::scoped_interpreter());
+    //impl->py_interpreter.reset(new pybind11::scoped_interpreter()); // using PythonPlugin
 
     if (!connection_file.empty()) {
         std::unique_ptr<xeus::xcontext> context = xeus::make_zmq_context();
